@@ -4,6 +4,12 @@
 #include <sys/shm.h>
 
 #define SHMKEY 55555
+#define PERMS 0644
+typedef struct msgbuffer {
+        long mtype;
+        //char strData[100];
+        int intData;
+} msgbuffer;
 
 int main(int argc, char** argv){
 
@@ -24,12 +30,15 @@ int main(int argc, char** argv){
                 exitTime[0] += 1;
         }
 
-        printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d JUST STARTING\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1]);
+        //printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d JUST STARTING\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1]);
 
         int currentTime = sharedTime[0];
         int secondsPassed = 0;
-        while (exitTime[0] > sharedTime[0] || exitTime[1] > sharedTime[1]){
+        //while (1)
+        //wait for message
+        while (exitTime[0] > sharedTime[0] || exitTime[1] > sharedTime[1]){// make if
                 if(sharedTime[0] - exitTime[0] >= 2){
+                        //send message back that terminating
                         break;
                 }
                 if(currentTime != sharedTime[0]){
@@ -37,9 +46,12 @@ int main(int argc, char** argv){
                         printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d, %d SECONDS HAVE PASSED\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1],secondsPassed);
                         currentTime = sharedTime[0];
                 }
-        }
+                //send message saying not terminating
+        }//else
+        //send message back that terminating
+        //break
 
-        printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d TERMINATING\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1]);
+        //printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d TERMINATING\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1]);
 
         shmdt(sharedTime);
 
