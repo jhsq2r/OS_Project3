@@ -40,7 +40,7 @@ struct PCB {
         int startNano;
 };
 
-void displayTable(int i, struct PCB *processTable){
+void displayTable(int i, struct PCB *processTable){//Make it also write to output file
         printf("Process Table:\nEntry Occupied PID StartS StartN\n");
         for (int x = 0; x < i; x++){
 
@@ -58,8 +58,9 @@ void updateTime(int *sharedTime){
 }
 
 void help(){
-        printf("Program usage\n-h = help\n-n [int] = Num Children to Launch\n-s [int] = Num of children allowed at once\n-t [int] = Max num of seconds for each child to be alive");
-        printf("Default values are -n 5 -s 3 -t 3\nThis Program is designed to take in 3 integers for Num Processes, Num of processes allowed at once,\nand Max num of seconds for each process");
+        printf("Program usage\n-h = help\n-n [int] = Num Children to Launch\n-s [int] = Num of children allowed at once\n-t [int] = Max num of seconds for each child to be alive\n-f [filename] = name of file to write log to");
+        printf("Default values are -n 5 -s 3 -t 3\nThis Program is designed to take in 4 inputs for Num Processes, Num of processes allowed at once,\nMax num of seconds for each process, and the name of a file to write the log to");
+        printf("\nThis program requires a filename to be entered");
 }
 
 int main(int argc, char** argv) {
@@ -78,6 +79,7 @@ int main(int argc, char** argv) {
         int proc = 5;
         int simul = 3;
         int maxTime = 3;//default parameters
+        //string filename;
 
         int shmid = shmget(SHMKEY, sizeof(int)*2, 0777 | IPC_CREAT);
         if(shmid == -1){
@@ -89,7 +91,7 @@ int main(int argc, char** argv) {
         sharedTime[1] = 0;
 
         int option;
-        while((option = getopt(argc, argv, "hn:s:t:")) != -1) {//Read command line arguments
+        while((option = getopt(argc, argv, "hn:s:t:f:")) != -1) {//Read command line arguments
                 switch(option){
                         case 'h':
                                 help();
@@ -104,6 +106,8 @@ int main(int argc, char** argv) {
                         case 't':
                                 maxTime = atoi(optarg);
                                 break;
+                        case 'f':
+                                //filename = optarg;
                         case '?':
                                 help();
                                 return EXIT_FAILURE;
@@ -114,6 +118,7 @@ int main(int argc, char** argv) {
         struct PCB processTable[20];
         int status;
         int i = 0;
+        int next = 0;
         while(i < proc){
                 seed++;
                 srand(seed);
@@ -152,6 +157,12 @@ int main(int argc, char** argv) {
                                 processTable[i].startSeconds = sharedTime[0];
                                 processTable[i].startNano = sharedTime[1];
                         }
+                        //while processTable[next].occupied == 0 next++ if next == 20 next = 0
+                        //send message to next
+                        //wait for response
+                        //if terminating, output terminating to terminal and logfile
+                        //next++
+                        //if next == 20 next = 0
                         i++;
                 }
 
@@ -161,12 +172,17 @@ int main(int argc, char** argv) {
         while(i < simul){
                 updateTime(sharedTime);
                 int pid = waitpid(-1,&status,WNOHANG);//wait for all children to die
+                if (sharedTime[1] == 500000000){
+                        displayTable(proc, processTable);
+                }
                 if(pid != 0){
                         for(int x = 0; x < (proc - simul + i + 1); x++){
                                 if(waitpid(processTable[x].pid,&status,WNOHANG) != 0){
                                         processTable[x].occupied = 0;
                                 }
                         }
+                        //if i + 1 == simul do nothing
+                        //else do as above
                         i++;
                 }
         }
@@ -175,8 +191,10 @@ int main(int argc, char** argv) {
 
         shmdt(sharedTime);
         shmctl(shmid,IPC_RMID,NULL);
+        //delete msgque
 
         printf("Done\n");
 
         return 0;
 }
+
