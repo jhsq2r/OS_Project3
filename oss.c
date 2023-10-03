@@ -136,6 +136,10 @@ int main(int argc, char** argv) {
         }
 
         struct PCB processTable[20];
+        for (int y = 0; y < 20; y++){
+                processTable[y].occupied = 2;
+        }
+        int total = 0;
         int status;
         int i = 0;
         int next = 0;
@@ -143,18 +147,12 @@ int main(int argc, char** argv) {
                 seed++;
                 srand(seed);
                 int pid = waitpid(-1,&status,WNOHANG);
-                //printf("i = %d\n", i);
                 updateTime(sharedTime);
                 if (sharedTime[1] == 500000000){
                         displayTable(i, processTable);
                 }
 
                 if((i >= simul && pid != 0) || i < simul){
-                        for(int x = 0; x < (i+1); x++){
-                                if(waitpid(processTable[x].pid, &status, WNOHANG) != 0){
-                                        processTable[x].occupied = 0;
-                                }
-                        }
                         pid_t child_pid = fork();
                         if(child_pid == 0){
                                 char convertSec[20];
@@ -179,12 +177,13 @@ int main(int argc, char** argv) {
                         }
                         i++;
                 }
-                while (processTable[next].occupied == 0){
+                while (processTable[next].occupied != 1){
                         next++;
                         if (next == 20){
                                 next = 0;
                         }
                 }
+
                 //send message to next and log
                  messenger.mtype = processTable[next].pid;
                  messenger.intData = processTable[next].pid;
@@ -203,6 +202,7 @@ int main(int argc, char** argv) {
                  if (receiver.intData == 0){
                          //terminating
                          printf("Child %d says it's terminating\n", next);
+                         processTable[next].occupied = 0;
                  }else if(receiver.intData == 1){
                          //not done yet
                          printf("Child %d saus it's not done yet\n", next);
@@ -217,28 +217,18 @@ int main(int argc, char** argv) {
 
         }
 
-        i = 0;
-        while(i < simul){
+        while(1){
                 updateTime(sharedTime);
-                int pid = waitpid(-1,&status,WNOHANG);//wait for all children to die
                 if (sharedTime[1] == 500000000){
                         displayTable(proc, processTable);
                 }
-                if(pid != 0){
-                        for(int x = 0; x < (proc - simul + i + 1); x++){
-                                if(waitpid(processTable[x].pid,&status,WNOHANG) != 0){
-                                        processTable[x].occupied = 0;
-                                }
-                        }
-                        i++;
-                }
-                if (i != simul){
-                        while(processTable[next].occupied == 0){
+                        while(processTable[next].occupied != 1){
                                 next++;
                                 if (next == 20){
                                         next = 0;
                                 }
                         }
+
                         messenger.mtype = processTable[next].pid;
                         messenger.intData = processTable[next].pid;
 
@@ -248,6 +238,7 @@ int main(int argc, char** argv) {
                         }
                                 //Log that message sent
                         printf("Message sent to child %d\n", next);
+
                         if (msgrcv(msqid, &receiver, sizeof(msgbuffer), getpid(),0) == -1) {
                                 perror("failed to receive message in parent\n");
                                 exit(1);
@@ -255,6 +246,16 @@ int main(int argc, char** argv) {
                         if (receiver.intData == 0){
                                 //terminating
                                 printf("Child %d says its terminating\n", next);
+
+                                processTable[next].occupied = 0;
+
+                                total = 0;
+                                for(int x = 0; x < proc; x++){
+                                        total += processTable[x].occupied;
+                                }
+                                if(total == 0){
+                                        break;
+                                }
                         }else if(receiver.intData == 1){
                                 //not done yet
                                 printf("Child %d says its not done yet\n", next);
@@ -266,7 +267,7 @@ int main(int argc, char** argv) {
                         if (next == 20){
                                 next = 0;
                         }
-                }
+
         }
 
         displayTable(proc, processTable);
