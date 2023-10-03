@@ -56,13 +56,6 @@ int main(int argc, char** argv){
                 }
                 if (exitTime[0] > sharedTime[0] || exitTime[1] > sharedTime[1]){
                         if(sharedTime[0] - exitTime[0] >= 2){
-                                //send message back that terminating
-                                receiver.mtype = getppid();
-                                receiver.intData = 0;
-                                if (msgsnd(msqid, &receiver, sizeof(msgbuffer)-sizeof(long),0) == -1){
-                                        perror("msgsnd to parent failed\n");
-                                        exit(1);
-                                }
                                 break;
                         }
                         if(currentTime != sharedTime[0]){
@@ -79,21 +72,22 @@ int main(int argc, char** argv){
                         }
 
                 }else{
-                        //send message back that terminating
-                        receiver.mtype = getppid();
-                        receiver.intData = 0;
-                        if (msgsnd(msqid, &receiver, sizeof(msgbuffer)-sizeof(long),0) == -1){
-                                perror("msgsnd to parent failed\n");
-                                exit(1);
-                        }
-
                         break;
                 }
         }
         //printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d TERMINATING\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1]);
+
+        receiver.mtype = getppid();
+        receiver.intData = 0;
+        if (msgsnd(msqid, &receiver, sizeof(msgbuffer)-sizeof(long),0) == -1){
+                perror("msgsnd to parent failed\n");
+                exit(1);
+        }
+
 
         shmdt(sharedTime);
 
         return 0;
 
 }
+
