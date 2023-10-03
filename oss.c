@@ -8,11 +8,22 @@
 #include <sys/time.h>
 #include <time.h>
 #include <signal.h>
+#include <sys/msg.h>
+#include <sys/types.h>
+#include <string.h>
+#include <errno.h>
 
 //Creator: Jarod Stagner
 //Turn-in date:
 
 #define SHMKEY 55555
+#define PERMS 0644
+#define MSGKEY 66666
+
+typedef struct msgbuffer {
+        long mtype;
+        int intData;
+} msgbuffer;
 
 static void myhandler(int s){
         printf("Killing all... exiting...\n");
@@ -64,6 +75,15 @@ void help(){
 }
 
 int main(int argc, char** argv) {
+
+        msgbuffer messenger;
+        msgbuffer receiver;
+        int msqid;
+
+        if ((msqid = msgget(MSGKEY, PERMS | IPC_CREAT)) == -1) {
+                perror("msgget in parent");
+                exit(1);
+        }
 
         if (setupinterrupt() == -1) {
                 perror("Failed to set up handler for SIGPROF");
@@ -157,14 +177,43 @@ int main(int argc, char** argv) {
                                 processTable[i].startSeconds = sharedTime[0];
                                 processTable[i].startNano = sharedTime[1];
                         }
-                        //while processTable[next].occupied == 0 next++ if next == 20 next = 0
-                        //send message to next
-                        //wait for response
-                        //if terminating, output terminating to terminal and logfile
-                        //next++
-                        //if next == 20 next = 0
                         i++;
                 }
+                while (processTable[next].occupied == 0){
+                        next++;
+                        if (next == 20){
+                                next = 0;
+                        }
+                }
+                //send message to next and log
+                 messenger.mtype = processTable[next].pid;
+                 messenger.intData = processTable[next].pid;
+
+                 if (msgsnd(msqid, &messenger, sizeof(msgbuffer)-sizeof(long), 0) == -1) {
+                         perror("msgsnd to child 1 failed\n");
+                         exit(1);
+                 }
+                        //Log that message sent
+                printf("Message sent to child %d\n", next);
+                 //wait for response and log it
+                 if (msgrcv(msqid, &receiver, sizeof(msgbuffer), getpid(),0) == -1) {
+                         perror("failed to receive message in parent\n");
+                         exit(1);
+                 }
+                 if (receiver.intData == 0){
+                         //terminating
+                         printf("Child %d says it's terminating\n", next);
+                 }else if(receiver.intData == 1){
+                         //not done yet
+                         printf("Child %d saus it's not done yet\n", next);
+                 }else{
+                         //something bad happened
+                         printf("Something weird happened\n");
+                 }
+                 next++;
+                 if (next == 20){
+                         next = 0;
+                 }
 
         }
 
@@ -181,9 +230,42 @@ int main(int argc, char** argv) {
                                         processTable[x].occupied = 0;
                                 }
                         }
-                        //if i + 1 == simul do nothing
-                        //else do as above
                         i++;
+                }
+                if (i != simul){
+                        while(processTable[next].occupied == 0){
+                                next++;
+                                if (next == 20){
+                                        next = 0;
+                                }
+                        }
+                        messenger.mtype = processTable[next].pid;
+                        messenger.intData = processTable[next].pid;
+
+                        if (msgsnd(msqid, &messenger, sizeof(msgbuffer)-sizeof(long), 0) == -1) {
+                                perror("msgsnd to child 1 failed\n");
+                                exit(1);
+                        }
+                                //Log that message sent
+                        printf("Message sent to child %d\n", next);
+                        if (msgrcv(msqid, &receiver, sizeof(msgbuffer), getpid(),0) == -1) {
+                                perror("failed to receive message in parent\n");
+                                exit(1);
+                        }
+                        if (receiver.intData == 0){
+                                //terminating
+                                printf("Child %d says its terminating\n", next);
+                        }else if(receiver.intData == 1){
+                                //not done yet
+                                printf("Child %d says its not done yet\n", next);
+                        }else{
+                                //something went wrong
+                                printf("Something weird happened\n");
+                        }
+                        next++;
+                        if (next == 20){
+                                next = 0;
+                        }
                 }
         }
 
@@ -191,10 +273,14 @@ int main(int argc, char** argv) {
 
         shmdt(sharedTime);
         shmctl(shmid,IPC_RMID,NULL);
-        //delete msgque
+        if (msgctl(msqid, IPC_RMID, NULL) == -1) {
+                perror("msgctl to get rid of queue in parent failed");
+                exit(1);
+        }
 
         printf("Done\n");
 
         return 0;
 }
+
 
