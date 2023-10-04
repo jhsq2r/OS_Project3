@@ -51,10 +51,11 @@ struct PCB {
         int startNano;
 };
 
-void displayTable(int i, struct PCB *processTable){//Make it also write to output file
+void displayTable(int i, struct PCB *processTable, FILE *file){//Make it also write to output file
+        fprintf(file,"Process Table:\nEntry Occupied PID StartS StartN\n");
         printf("Process Table:\nEntry Occupied PID StartS StartN\n");
         for (int x = 0; x < i; x++){
-
+                fprintf(file,"%d        %d      %d      %d      %d\n",x,processTable[x].occupied,processTable[x].pid,processTable[x].startSeconds,processTable[x].startNano);
                 printf("%d      %d      %d      %d      %d\n", x,processTable[x].occupied,processTable[x].pid,processTable[x].startSeconds,processTable[x].startNano);
 
         }
@@ -99,7 +100,7 @@ int main(int argc, char** argv) {
         int proc = 5;
         int simul = 3;
         int maxTime = 3;//default parameters
-        //string filename;
+        FILE *file;
 
         int shmid = shmget(SHMKEY, sizeof(int)*2, 0777 | IPC_CREAT);
         if(shmid == -1){
@@ -127,7 +128,8 @@ int main(int argc, char** argv) {
                                 maxTime = atoi(optarg);
                                 break;
                         case 'f':
-                                //filename = optarg;
+                                file = fopen(optarg,"w");
+                                break;
                         case '?':
                                 help();
                                 return EXIT_FAILURE;
@@ -135,24 +137,32 @@ int main(int argc, char** argv) {
                 }
         }
 
+        fprintf(file,"Ran with arguments -n %d -s %d -t %d \n", proc,simul,maxTime);
+
+
         struct PCB processTable[20];
         for (int y = 0; y < 20; y++){
-                processTable[y].occupied = 2;
+                processTable[y].occupied = 0;
         }
         int total = 0;
         int status;
         int i = 0;
         int next = 0;
         while(i < proc){
+                //printf("i is %d\n", i);
                 seed++;
                 srand(seed);
-                int pid = waitpid(-1,&status,WNOHANG);
+                //int pid = waitpid(-1,&status,WNOHANG);
                 updateTime(sharedTime);
                 if (sharedTime[1] == 500000000){
-                        displayTable(i, processTable);
+                        displayTable(i, processTable, file);
                 }
-
-                if((i >= simul && pid != 0) || i < simul){
+                total=0;
+                for(int z = 0; z < proc; z++){
+                        total += processTable[z].occupied;
+                }
+                if(total < simul){
+                //if((i >= simul && pid != 0) || i < simul || total < simul){
                         pid_t child_pid = fork();
                         if(child_pid == 0){
                                 char convertSec[20];
@@ -193,19 +203,24 @@ int main(int argc, char** argv) {
                          exit(1);
                  }
                         //Log that message sent
-                printf("Message sent to child %d\n", next);
+                printf("Message sent to Worker %d PID %d at time %d;%d\n", next,processTable[next].pid,sharedTime[0],sharedTime[1]);
+                fprintf(file, "Message sent to Worker %d PID %d at time %d;%d\n", next,processTable[next].pid,sharedTime[0],sharedTime[1]);
                  //wait for response and log it
                  if (msgrcv(msqid, &receiver, sizeof(msgbuffer), getpid(),0) == -1) {
                          perror("failed to receive message in parent\n");
                          exit(1);
                  }
+                 printf("Message received from Worker %d PID %d at time %d;%d\n", next,processTable[next].pid,sharedTime[0],sharedTime[1]);
+                 fprintf(file,"Message received from Worker %d PID %d at time %d;%d\n", next,processTable[next].pid,sharedTime[0],sharedTime[1]);
                  if (receiver.intData == 0){
                          //terminating
-                         printf("Child %d says it's terminating\n", next);
+                         printf("Worker %d PID %d says it's terminating\n", next,processTable[next].pid);
+                         fprintf(file, "Worker %d PID %d says it's terminating\n", next,processTable[next].pid);
                          processTable[next].occupied = 0;
                  }else if(receiver.intData == 1){
                          //not done yet
-                         printf("Child %d saus it's not done yet\n", next);
+                         printf("Worker %d PID %d says it's not done yet\n", next,processTable[next].pid);
+                         fprintf(file, "Worker %d PID %d says it's not done yet\n", next,processTable[next].pid);
                  }else{
                          //something bad happened
                          printf("Something weird happened\n");
@@ -220,7 +235,7 @@ int main(int argc, char** argv) {
         while(1){
                 updateTime(sharedTime);
                 if (sharedTime[1] == 500000000){
-                        displayTable(proc, processTable);
+                        displayTable(proc, processTable, file);
                 }
                         while(processTable[next].occupied != 1){
                                 next++;
@@ -237,15 +252,19 @@ int main(int argc, char** argv) {
                                 exit(1);
                         }
                                 //Log that message sent
-                        printf("Message sent to child %d\n", next);
+                        printf("Message sent to Worker %d PID %d at time %d;%d\n", next,processTable[next].pid,sharedTime[0],sharedTime[1]);
+                        fprintf(file, "Message sent to Worker %d PID %d at time %d;%d\n", next,processTable[next].pid,sharedTime[0],sharedTime[1]);
 
                         if (msgrcv(msqid, &receiver, sizeof(msgbuffer), getpid(),0) == -1) {
                                 perror("failed to receive message in parent\n");
                                 exit(1);
                         }
+                        printf("Message received from Worker %d PID %d at time %d;%d\n", next,processTable[next].pid,sharedTime[0],sharedTime[1]);
+                        fprintf(file, "Message received from Worker %d PID %d at time %d;%d\n", next,processTable[next].pid,sharedTime[0],sharedTime[1]);
                         if (receiver.intData == 0){
                                 //terminating
-                                printf("Child %d says its terminating\n", next);
+                                printf("Worker %d PID %d says it's terminating\n", next,processTable[next].pid);
+                                fprintf(file, "Worker %d PID %d says it's terminating\n", next,processTable[next].pid);
 
                                 processTable[next].occupied = 0;
 
@@ -258,7 +277,8 @@ int main(int argc, char** argv) {
                                 }
                         }else if(receiver.intData == 1){
                                 //not done yet
-                                printf("Child %d says its not done yet\n", next);
+                                printf("Worker %d PID %d says it's not done yet\n", next,processTable[next].pid);
+                                fprintf(file, "Worker %d PID %d says it's not done yet\n", next,processTable[next].pid);
                         }else{
                                 //something went wrong
                                 printf("Something weird happened\n");
@@ -270,7 +290,7 @@ int main(int argc, char** argv) {
 
         }
 
-        displayTable(proc, processTable);
+        displayTable(proc, processTable, file);
 
         shmdt(sharedTime);
         shmctl(shmid,IPC_RMID,NULL);
@@ -280,8 +300,9 @@ int main(int argc, char** argv) {
         }
 
         printf("Done\n");
+        fprintf(file, "Done\n");
+        fclose(file);
 
         return 0;
 }
-
 
