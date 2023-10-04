@@ -44,7 +44,7 @@ int main(int argc, char** argv){
                 exitTime[0] += 1;
         }
 
-        //printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d JUST STARTING\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1]);
+        printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d JUST STARTING\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1]);
 
         int currentTime = sharedTime[0];
         int secondsPassed = 0;
@@ -54,6 +54,7 @@ int main(int argc, char** argv){
                         perror("failed to receive message from parent\n");
                         exit(1);
                 }
+                printf("WORKER PID:%d Message received\n",getpid());
                 if (exitTime[0] > sharedTime[0] || exitTime[1] > sharedTime[1]){
                         if(sharedTime[0] - exitTime[0] >= 2){
                                 break;
@@ -75,8 +76,7 @@ int main(int argc, char** argv){
                         break;
                 }
         }
-        //printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d TERMINATING\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1]);
-
+        printf("WORKER PID:%d PPID:%d SysClockS: %d SysclockNano: %d TermTimeS: %d TermTimeNano: %d TERMINATING\n",getpid(),getppid(),sharedTime[0],sharedTime[1],exitTime[0],exitTime[1]);
         receiver.mtype = getppid();
         receiver.intData = 0;
         if (msgsnd(msqid, &receiver, sizeof(msgbuffer)-sizeof(long),0) == -1){
@@ -84,10 +84,8 @@ int main(int argc, char** argv){
                 exit(1);
         }
 
-
         shmdt(sharedTime);
 
         return 0;
 
 }
-
