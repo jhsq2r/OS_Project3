@@ -214,6 +214,7 @@ int main(int argc, char** argv) {
                         //terminating
                         printf("Worker %d PID %d says it's terminating\n", next,processTable[next].pid);
                         fprintf(file, "Worker %d PID %d says it's terminating\n", next,processTable[next].pid);
+                        waitpid(processTable[next].pid, &status, 0);
                         processTable[next].occupied = 0;
                         total=0;
                         for(int u = 0; u < proc; u++){
