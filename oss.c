@@ -153,7 +153,7 @@ int main(int argc, char** argv) {
                 seed++;
                 srand(seed);
                 updateTime(sharedTime);
-                if (sharedTime[1] == 500000000){
+                if (sharedTime[1] == 500000000 || sharedTime[1] == 0){
                         displayTable(i, processTable, file);
                 }
                 total=0;
